@@ -1,0 +1,40 @@
+name: Publish to npm
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: npm
+      - name: Verify release name and tag
+        env:
+          EXPECTED_PACKAGE_NAME: ${{ vars.NPM_PACKAGE_NAME }}
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from "node:fs";
+          const { name, version } = JSON.parse(readFileSync("package.json", "utf8"));
+          if (!process.env.EXPECTED_PACKAGE_NAME || process.env.EXPECTED_PACKAGE_NAME !== name) {
+            throw new Error("Set NPM_PACKAGE_NAME to the approved name in package.json.");
+          }
+          if (process.env.GITHUB_REF_NAME !== `v${version}`) {
+            throw new Error("The release tag must match package.json version.");
+          }
+          JS
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
