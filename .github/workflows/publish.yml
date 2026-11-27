@@ -58,9 +58,9 @@ jobs:
             throw new Error("Set .github/release-tag to a tag in vYYYYMMDD.n format.");
           }
           if (process.env.GITHUB_EVENT_NAME === "pull_request") {
-            const title = /^release (v[0-9]+\.[0-9]+): \S.*$/.exec(process.env.PR_TITLE);
+            const title = /^release (v[0-9]+\.[0-9]+)$/.exec(process.env.PR_TITLE);
             if (title?.[1] !== tag) {
-              throw new Error(`Use the PR title "release ${tag}: <highlights>".`);
+              throw new Error(`Use the PR title "release ${tag}".`);
             }
           }
           appendFileSync(process.env.GITHUB_OUTPUT, `tag=${tag}\n`);
@@ -83,7 +83,7 @@ jobs:
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-          cache: npm
+          package-manager-cache: false # npm recommends no dependency cache in release builds.
       - name: Verify release tag target
         run: |
           ref="refs/tags/$RELEASE_TAG"
@@ -109,6 +109,7 @@ jobs:
       - run: npm test
       - name: Publish package to npm
         env:
+          # npm uses OIDC trusted publishing first and falls back to this token. Leave NPM_TOKEN unset after bootstrap.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm pack --json --pack-destination "$RUNNER_TEMP" > "$RUNNER_TEMP/package.json"
