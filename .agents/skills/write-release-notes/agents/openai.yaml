@@ -1,0 +1,3 @@
+interface:
+  display_name: "Write Release Notes"
+  short_description: "Explain user-facing or technical changes in plain release notes"
