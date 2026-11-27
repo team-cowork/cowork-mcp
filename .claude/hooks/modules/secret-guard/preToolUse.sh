@@ -1,10 +1,12 @@
 #!/bin/bash
 INPUT=$(cat)
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name')
-if [[ "$TOOL_NAME" == "Write" ]] || [[ "$TOOL_NAME" == "Edit" ]]; then
-    CONTENT=$(echo "$INPUT" | jq -r '.tool_input.content // .tool_input.new_string // empty')
-    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
-    if [[ "$FILE_PATH" == *.env* ]] || [[ "$(basename "$FILE_PATH")" == ".env" ]]; then
+if [[ "$TOOL_NAME" == "Write" || "$TOOL_NAME" == "Edit" || "$TOOL_NAME" == "MultiEdit" || "$TOOL_NAME" == "NotebookEdit" ]]; then
+    CONTENT=$(echo "$INPUT" | jq -r '.tool_input | .content // .new_string // .new_source // (.edits[]?.new_string) // empty')
+    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.notebook_path // empty')
+    FILE_PATH="${FILE_PATH//\\//}"
+    FILE_NAME="${FILE_PATH##*/}"
+    if [[ "$FILE_NAME" == ".env" || "$FILE_NAME" == .env.* ]]; then
         exit 0
     fi
     PATTERNS=(
@@ -18,8 +20,8 @@ if [[ "$TOOL_NAME" == "Write" ]] || [[ "$TOOL_NAME" == "Edit" ]]; then
         "xox[baprs]-[A-Za-z0-9-]+"
     )
     for pattern in "${PATTERNS[@]}"; do
-        if echo "$CONTENT" | grep -qE "$pattern"; then
-            echo "[Hook] Potential secret detected in $(basename "$FILE_PATH"). Pattern: $pattern" >&2
+        if printf '%s\n' "$CONTENT" | grep -qE -- "$pattern"; then
+            echo "[Hook] Potential secret detected in $FILE_NAME. Pattern: $pattern" >&2
             echo "Possible secret or credential detected in the file content. Review before writing."
             exit 2
         fi

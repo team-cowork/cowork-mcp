@@ -6,7 +6,9 @@ if [[ "$TOOL_NAME" == "Write" ]] || [[ "$TOOL_NAME" == "Edit" ]] || [[ "$TOOL_NA
     CONTENT=$(echo "$INPUT" | jq -r '.tool_input.content // .tool_input.new_string // empty')
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.path // empty')
 
-    if [[ "$FILE_PATH" == *.env* ]] || [[ "$(basename "$FILE_PATH")" == ".env" ]]; then
+    FILE_PATH="${FILE_PATH//\\//}"
+    FILE_NAME="${FILE_PATH##*/}"
+    if [[ "$FILE_NAME" == ".env" || "$FILE_NAME" == .env.* ]]; then
         exit 0
     fi
 
@@ -22,8 +24,8 @@ if [[ "$TOOL_NAME" == "Write" ]] || [[ "$TOOL_NAME" == "Edit" ]] || [[ "$TOOL_NA
     )
 
     for pattern in "${PATTERNS[@]}"; do
-        if echo "$CONTENT" | grep -qE "$pattern"; then
-            echo "[Hook] Potential secret detected in $(basename "$FILE_PATH"). Pattern: $pattern" >&2
+        if printf '%s\n' "$CONTENT" | grep -qE -- "$pattern"; then
+            echo "[Hook] Potential secret detected in $FILE_NAME. Pattern: $pattern" >&2
             echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Possible secret or credential detected in the file content. Review before writing."}}'
             exit 0
         fi
