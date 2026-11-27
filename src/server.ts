@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { CoworkClient, CoworkError } from "./client.js";
+
+const packageInfo = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
+  name: string;
+  version: string;
+};
 
 const id = z.int().positive();
 const objectId = z.string().regex(/^[a-f0-9]{24}$/i);
@@ -40,7 +46,7 @@ function failure(error: unknown, clientMessageId?: string) {
 }
 
 export function createServer(client: CoworkClient): McpServer {
-  const server = new McpServer({ name: "cowork-mcp", version: "0.1.0" });
+  const server = new McpServer({ name: packageInfo.name, version: packageInfo.version });
 
   server.registerTool("list_teams_and_channels", {
     description: "List your cowork teams and their channels with IDs. Find channels by name. If several names match, show the candidates with team names and ask the user to choose before continuing.",
