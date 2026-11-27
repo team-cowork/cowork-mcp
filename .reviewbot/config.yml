@@ -3,18 +3,9 @@ minSeverity: minor
 maxInlineComments: 25
 
 exclude:
-  - '**/gradlew'
-  - '**/gradlew.bat'
-  - '**/gradle/wrapper/**'
-  - 'cowork-project/mvnw'
-  - 'cowork-project/mvnw.cmd'
-  - 'cowork-project/.mvn/**'
-  - '**/target/**'
-  - '**/bin/**'
-  - '**/obj/**'
-  - '**/.gradle/**'
-  - '**/*.sum'
-  - '**/*.lockb'
+  - 'node_modules/**'
+  - 'dist/**'
+  - 'package-lock.json'
 
 maxFiles: 60
 maxFileChars: 24000
