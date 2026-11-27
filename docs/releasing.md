@@ -4,7 +4,7 @@
 
 1. 최신 `main`에서 `chore/release-YYYYMMDD.n` 브랜치를 만듭니다. 같은 날의 첫 배포에는 `n=0`을 사용하고, 이후 배포마다 1씩 올립니다.
 2. `.github/release-tag`에 배포 태그를 적습니다. npm 버전은 변경 범위에 맞춰 SemVer로 올립니다. 패치 배포라면 `npm version patch --no-git-tag-version`으로 `package.json`과 `package-lock.json`을 함께 갱신합니다.
-3. `release vYYYYMMDD.n: <변경 요약>` 형식으로 PR을 열고, 검사가 통과하면 `main`에 병합합니다.
+3. `release vYYYYMMDD.n` 형식으로 PR을 열고, 검사가 통과하면 `main`에 병합합니다.
 
 병합 후 Release 워크플로가 npm 패키지를 게시하고, 병합된 커밋에 GitHub 태그와 릴리스를 생성합니다. 패키지는 npm org `team-cowork`가 소유하는 `@team-cowork/cowork-mcp`입니다. 워크플로는 저장소 변수 `NPM_PACKAGE_NAME`으로 게시 대상을 확인합니다.
 
