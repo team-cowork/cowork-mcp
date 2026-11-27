@@ -1,0 +1,50 @@
+groups:
+  - claude
+  - codex
+
+overrides:
+  claude/hooks/dispatcher: true
+  claude/settings: true
+  claude/hooks/command-guard: true
+  claude/hooks/logging: true
+  claude/hooks/secret-guard: true
+  codex/hooks/dispatcher: true
+  codex/hooks-json: true
+  codex/hooks/command-guard: true
+  codex/hooks/logging: true
+  codex/hooks/secret-guard: true
+
+  claude/skills/test: false
+  codex/skills/test: false
+
+  claude/agents/contradiction-finder: false
+  codex/agents/contradiction-finder: false
+
+  claude/agents/doc-polisher: false
+  claude/agents/prompt-polisher: false
+  claude/agents/kotlin-convention-validator: false
+  claude/agents/kotlin-test-fixer: false
+  codex/agents/doc-polisher: false
+  codex/agents/prompt-polisher: false
+  codex/agents/kotlin-convention-validator: false
+  codex/agents/kotlin-test-fixer: false
+
+  claude/skills/git-commit: false
+  claude/skills/write-pr: false
+  codex/skills/git-commit: false
+  codex/skills/write-pr: false
+
+  claude/skills/nextjs-fsd-architecture: false
+  claude/skills/tailwind-shadcn: false
+  claude/skills/data-and-forms: false
+  claude/skills/react-conventions: false
+  claude/agents/frontend-convention-validator: false
+  codex/skills/nextjs-fsd-architecture: false
+  codex/skills/tailwind-shadcn: false
+  codex/skills/data-and-forms: false
+  codex/skills/react-conventions: false
+  codex/agents/frontend-convention-validator: false
+
+branch_prefix: update/
+base_branch: main
+language: ko
