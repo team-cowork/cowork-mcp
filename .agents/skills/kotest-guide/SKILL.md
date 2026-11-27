@@ -47,7 +47,7 @@ class CreateApiKeyServiceTest : DescribeSpec({
 ### Mock Creation
 ```kotlin
 private val repository: ApiKeyRepository = mockk()
-private val service = ApiKeyService(repository)
+private val service = CreateApiKeyServiceImpl(repository)
 ```
 
 ### Stubbing
