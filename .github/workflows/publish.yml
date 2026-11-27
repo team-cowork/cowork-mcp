@@ -1,16 +1,82 @@
-name: Publish to npm
+name: Release
 on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
   push:
-    tags:
-      - 'v*'
+    branches: [main]
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  publish:
+  version:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.verify.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Verify release version
+        id: verify
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          node --input-type=module <<'JS'
+          import { execFileSync } from "node:child_process";
+          import { appendFileSync, readFileSync } from "node:fs";
+
+          const { version } = JSON.parse(readFileSync("package.json", "utf8"));
+          const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+          const baseSha = process.env.BASE_SHA;
+          const base = JSON.parse(execFileSync("git", ["show", `${baseSha}:package.json`], { encoding: "utf8" }));
+          const tagFile = ".github/release-tag";
+          const tagChanged = Boolean(execFileSync("git", ["diff", "--name-only", baseSha, "--", tagFile], { encoding: "utf8" }).trim());
+          const versionChanged = version !== base.version;
+          const isReleasePr = /^release\b/i.test(process.env.PR_TITLE);
+
+          if (version !== lock.version || version !== lock.packages[""].version) {
+            throw new Error("package.json and package-lock.json must have the same version.");
+          }
+          if (tagChanged !== versionChanged) {
+            throw new Error("Update the release tag and npm package version together.");
+          }
+          if (!versionChanged) {
+            if (isReleasePr) throw new Error("A release PR must update the tag and bump the package version.");
+            process.exit(0);
+          }
+
+          if (!/^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/.test(version)) {
+            throw new Error("Set the npm package version to a stable SemVer version.");
+          }
+          const tag = readFileSync(tagFile, "utf8").trim();
+          if (!/^v[1-9][0-9]{7}\.(?:0|[1-9][0-9]*)$/.test(tag)) {
+            throw new Error("Set .github/release-tag to a tag in vYYYYMMDD.n format.");
+          }
+          if (process.env.GITHUB_EVENT_NAME === "pull_request") {
+            const title = /^release (v[0-9]+\.[0-9]+): \S.*$/.exec(process.env.PR_TITLE);
+            if (title?.[1] !== tag) {
+              throw new Error(`Use the PR title "release ${tag}: <highlights>".`);
+            }
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `tag=${tag}\n`);
+          JS
+
+  publish:
+    needs: version
+    if: github.event_name == 'push' && needs.version.outputs.tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    concurrency:
+      group: release-${{ needs.version.outputs.tag }}
+    env:
+      RELEASE_TAG: ${{ needs.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -18,23 +84,61 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
           cache: npm
-      - name: Verify release name and tag
+      - name: Verify release tag target
+        run: |
+          ref="refs/tags/$RELEASE_TAG"
+          existing=$(git ls-remote --tags origin "$ref" "$ref^{}")
+          target=$(awk -v ref="$ref" '$2 == ref { tag = $1 } $2 == ref "^{}" { commit = $1 } END { print (commit ? commit : tag) }' <<< "$existing")
+          if [[ -n "$target" && "$target" != "$GITHUB_SHA" ]]; then
+            echo "$RELEASE_TAG already points to $target" >&2
+            exit 1
+          fi
+      - name: Verify package name
         env:
           EXPECTED_PACKAGE_NAME: ${{ vars.NPM_PACKAGE_NAME }}
         run: |
           node --input-type=module <<'JS'
           import { readFileSync } from "node:fs";
-          const { name, version } = JSON.parse(readFileSync("package.json", "utf8"));
+          const { name } = JSON.parse(readFileSync("package.json", "utf8"));
           if (!process.env.EXPECTED_PACKAGE_NAME || process.env.EXPECTED_PACKAGE_NAME !== name) {
             throw new Error("Set NPM_PACKAGE_NAME to the approved name in package.json.");
-          }
-          if (process.env.GITHUB_REF_NAME !== `v${version}`) {
-            throw new Error("The release tag must match package.json version.");
           }
           JS
       - run: npm ci
       - run: npm run lint
       - run: npm test
-      - run: npm publish --access public
+      - name: Publish package to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm pack --json --pack-destination "$RUNNER_TEMP" > "$RUNNER_TEMP/package.json"
+          node --input-type=module <<'JS'
+          import { execFileSync } from "node:child_process";
+          import { readFileSync } from "node:fs";
+          import { join } from "node:path";
+
+          const directory = process.env.RUNNER_TEMP;
+          const [pack] = JSON.parse(readFileSync(join(directory, "package.json"), "utf8"));
+          const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(pack.name)}/${pack.version}`, {
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (response.status === 404) {
+            execFileSync("npm", ["publish", join(directory, pack.filename), "--access", "public"], { stdio: "inherit" });
+          } else {
+            if (!response.ok) throw new Error(`npm registry returned HTTP ${response.status}.`);
+            const published = await response.json();
+            if (published.dist?.integrity !== pack.integrity) {
+              throw new Error(`${pack.id} already exists on npm with different contents.`);
+            }
+            console.log(`${pack.id} is already published.`);
+          }
+          JS
+      - name: Tag and create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            echo "$RELEASE_TAG already released"
+            exit 0
+          fi
+          gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "$RELEASE_TAG" --generate-notes
